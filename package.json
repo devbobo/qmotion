@@ -1,0 +1,28 @@
+{
+    "name": "qmotion",
+    "version": "0.0.1",
+    "author": "David Parry <npm@introversion.com.au>",
+    "description": "JS library for QMotion blinds",
+    "main": "./qmotion.js",
+    "repository" : {
+        "type" : "git",
+        "url" : "https://github.com/devbobo/qmotion.git"
+    },
+    "licenses" : [
+        {
+        "type" : "MIT",
+        "url" : "https://github.com/devbobo/qmotion/raw/master/LICENSE"
+        }
+    ],
+    "bugs" : {
+        "url" : "https://github.com/devbobo/qmotion/issues"
+    },
+    "keywords": [
+        "qmotion",
+        "qsync",
+        "blinds"
+    ],
+    "dependencies" : {
+        "sleep" : "*"
+    }
+}
