@@ -287,7 +287,7 @@ QMotion.prototype._readDevice = function() {
         var hexString = data.toString("hex");
 
         if (debug) {
-            console.log(hexString);
+            console.log("TCP response: " + hexString);
         }
 
         if (reMsg.test(hexString) && hexString.length > lenMsg) {

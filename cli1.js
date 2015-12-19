@@ -1,5 +1,7 @@
 var qmotion = require('./qmotion');
 
+qmotion.setDebug(true);
+
 var client = qmotion.search();
 
 client.on("timeout", function(device) {
@@ -18,7 +20,7 @@ client.on("found", function(device) {
         console.log();
         console.log("Select blind to control:");
 
-        for (i = 0; i < device.blinds.length - 1 ; i++) {
+        for (i = 0; i < device.blinds.length; i++) {
             str += (i + 1) + ": " + device.blinds[i].name + ", ";
         }
 
