@@ -313,11 +313,7 @@ QMotion.prototype._readDevice = function() {
                 continue;
             }
 
-            var item = {
-                "name": Buffer(hexString.substr(52), "hex").toString().replace(/\u0000+/, ""),
-                "addr": hexString.substr(10,2) + hexString.substr(8,2) + hexString.substr(6,2),
-                "buffer": hexString
-            };
+            var item = new QMotionBlind(self, hexString);
 
             self.blinds.push(item);
         }
@@ -334,6 +330,24 @@ QMotion.prototype._readDevice = function() {
         self.blinds.sort(compare);
         self.emit('initialized', self.blinds);
     });
+}
+
+function QMotionBlind(device, hexString) {
+	events.EventEmitter.call(this);
+
+	this.name = Buffer(hexString.substr(52), "hex").toString().replace(/\u0000+/, "");
+	this.addr = hexString.substr(10,2) + hexString.substr(8,2) + hexString.substr(6,2);
+	this.buffer = hexString;
+	this.device = device;
+}
+require('util').inherits(QMotionBlind, events.EventEmitter);
+
+QMotionBlind.prototype.identify = function(position, cb) {
+	this.device.identify(this, position, cb);
+}
+
+QMotionBlind.prototype.move = function(position, cb) {
+	this.device.move(this, position, cb);
 }
 
 module.exports = QMotion;

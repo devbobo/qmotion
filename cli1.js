@@ -73,7 +73,7 @@ client.on("found", function(device) {
                     var position = index * 12.5;
                     console.log();
                     console.log("*** Move " + blind.name + " to " + position + "% ***");
-                    device.move(blind.addr, position);
+                    blind.move(position);
                     break;
                 case 0x03: // ctrl-c
                     console.log("Closing...");
