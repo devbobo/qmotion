@@ -333,21 +333,21 @@ QMotion.prototype._readDevice = function() {
 }
 
 function QMotionBlind(device, hexString) {
-	events.EventEmitter.call(this);
+    events.EventEmitter.call(this);
 
-	this.name = Buffer(hexString.substr(52), "hex").toString().replace(/\u0000+/, "");
-	this.addr = hexString.substr(10,2) + hexString.substr(8,2) + hexString.substr(6,2);
-	this.buffer = hexString;
-	this.device = device;
+    this.name = Buffer(hexString.substr(52), "hex").toString().replace(/\u0000+/, "");
+    this.addr = hexString.substr(10,2) + hexString.substr(8,2) + hexString.substr(6,2);
+    this.buffer = hexString;
+    this.device = device;
 }
 require('util').inherits(QMotionBlind, events.EventEmitter);
 
 QMotionBlind.prototype.identify = function(position, cb) {
-	this.device.identify(this, position, cb);
+    this.device.identify(this, position, cb);
 }
 
 QMotionBlind.prototype.move = function(position, cb) {
-	this.device.move(this, position, cb);
+    this.device.move(this, position, cb);
 }
 
 module.exports = QMotion;
