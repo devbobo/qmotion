@@ -40,7 +40,7 @@ Target an individual blind:
 
 ```Javascript
 var blind = device.blinds[0];
-device.move(blind, 50); // open blind to 50%
+blind.move(50); // open blind to 50%
 ```
 
 If you want to see debug messages then call
