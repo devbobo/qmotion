@@ -1,35 +1,30 @@
 var net    = require('net');
 var events = require('events');
 var sleep  = require('sleep');
+var storage = require('node-persist');
 
 var debug = false;
 var port = 9760;
-
-function compare(a,b) {
-    if (a.name < b.name) {
-        return -1;
-    }
-
-    if (a.name > b.name) {
-        return 1;
-    }
-
-    return 0;
-}
+var supportedPosition = [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100];
 
 function QMotion(ip) {
     events.EventEmitter.call(this);
 
     if (ip != undefined) {
         this.ip = ip;
-        this.blinds = [];
+        this.blinds = {};
         this.queue = [];
         this.tcpClient = null;
-        this.supportedPosition = [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100];
         this._readDevice();
     }
 }
 require('util').inherits(QMotion, events.EventEmitter);
+
+QMotion.PositionState = {
+    DECREASING: 0,
+    INCREASING: 1,
+    STOPPED:    2
+}
 
 QMotion.search = function() {
     var udpPort = 9720;
@@ -95,24 +90,25 @@ QMotion.setDebug = function(d){
     debug = d;
 }
 
-QMotion.prototype.identify = function(device, oldPos, cb) {
+QMotion.prototype.identify = function(blind, cb) {
     var self = this;
 
-    var index = this.supportedPosition.indexOf(oldPos);
-    var newPos = index < 6 ? this.supportedPosition[index + 1] : this.supportedPosition[index - 1];
+    var oldPos = blind.state.currentPosition;
+    var index = supportedPosition.indexOf(oldPos);
+    var newPos = index < 6 ? supportedPosition[index + 1] : supportedPosition[index - 1];
 
     if(typeof cb == "undefined") cb=function(){};
 
-    this.move(device, newPos, function() {
+    this.move(blind, newPos, function() {
         sleep.sleep(2);
 
-        self.move(device, oldPos, function() {
+        self.move(blind, oldPos, function() {
             cb();
         });
     });
 }
 
-QMotion.prototype.move = function(device, position, cb) {
+QMotion.prototype.move = function(blind, position, cb) {
     var code;
 
     if(typeof cb == "undefined") cb=function(){};
@@ -124,17 +120,17 @@ QMotion.prototype.move = function(device, position, cb) {
         return;
     }
 
-    if (this.supportedPosition.indexOf(value) == -1) {
-        if (value < this.supportedPosition[0]) {
-            position = this.supportedPosition[0];
+    if (supportedPosition.indexOf(value) == -1) {
+        if (value < supportedPosition[0]) {
+            position = supportedPosition[0];
         }
-        else if (value > this.supportedPosition[this.supportedPosition.length - 1]) {
-            position = this.supportedPosition[this.supportedPosition.length - 1];
+        else if (value > supportedPosition[supportedPosition.length - 1]) {
+            position = supportedPosition[supportedPosition.length - 1];
         }
         else {
-            for (i = 0; i < this.supportedPosition.length - 1 ; i++) {
-                if (value < this.supportedPosition[i + 1]) {
-                    value = (value > (this.supportedPosition[i] + 6.25)) ? this.supportedPosition[i + 1] : this.supportedPosition[i];
+            for (i = 0; i < supportedPosition.length - 1 ; i++) {
+                if (value < supportedPosition[i + 1]) {
+                    value = (value > (supportedPosition[i] + 6.25)) ? supportedPosition[i + 1] : supportedPosition[i];
                     break;
                 }
             }
@@ -152,17 +148,17 @@ QMotion.prototype.move = function(device, position, cb) {
         return;
     }
 
-    var cmd = "1b0500" + (typeof device === "object" ? device.addr : device);
+    var cmd = "1b0500";
 
-    this._addToQueue(cmd, code, cb, value);
+    this._addToQueue(cmd, blind, code, cb, value);
 }
 
-QMotion.prototype._addToQueue = function(cmd, code, cb, retVal) {
+QMotion.prototype._addToQueue = function(cmd, blind, code, cb, retVal) {
     var self = this;
 
     this.queue.push({"cmd": "1b00"});
     this.queue.push({"cmd": "1b0100"});
-    this.queue.push({"cmd": cmd + code, "cb": cb, "retVal": retVal});
+    this.queue.push({"cmd": cmd + blind.addr + code, "cb": cb, "blind": blind, "retVal": retVal});
 
     this._createClient();
 }
@@ -217,6 +213,13 @@ QMotion.prototype._getCode = function(value) {
     return code;
 }
 
+QMotion.prototype._persistPath = function() {
+    var path = require('path');
+
+    var home = process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE;
+    return path.join(home, ".qmotion", "persist");
+}
+
 QMotion.prototype._processQueue = function() {
     var self = this;
 
@@ -251,6 +254,10 @@ QMotion.prototype._processQueue = function() {
             }
         }
         else {
+            if (typeof item.blind != "undefined") {
+                item.blind._updateState();
+            }
+
             item.cb(item.retVal);
             self.tcpClient.destroy();
             self.tcpClient = null;
@@ -274,6 +281,8 @@ QMotion.prototype._processQueue = function() {
 QMotion.prototype._readDevice = function() {
     var self = this;
     var client = new net.Socket();
+
+    storage.initSync({dir: this._persistPath()});
 
     var reMsg = /^1604/;
     var reGroup = /^162c/;
@@ -315,7 +324,7 @@ QMotion.prototype._readDevice = function() {
 
             var item = new QMotionBlind(self, hexString);
 
-            self.blinds.push(item);
+            self.blinds[item.addr] = item;
         }
         while(oldHex.length >=index);
 
@@ -327,7 +336,6 @@ QMotion.prototype._readDevice = function() {
     });
 
     client.on('end', function() {
-        self.blinds.sort(compare);
         self.emit('initialized', self.blinds);
     });
 }
@@ -339,15 +347,73 @@ function QMotionBlind(device, hexString) {
     this.addr = hexString.substr(10,2) + hexString.substr(8,2) + hexString.substr(6,2);
     this.buffer = hexString;
     this.device = device;
+
+    this.state = storage.getItemSync(this.addr);
+
+    if (this.state == undefined) {
+        this.state = {
+            currentPosition: 0,
+            positionState: QMotion.PositionState.STOPPED,
+            targetPosition: 0
+        }
+
+        storage.setItemSync(this.addr, this.state);
+    }
+
+    this._timer = null;
 }
 require('util').inherits(QMotionBlind, events.EventEmitter);
 
-QMotionBlind.prototype.identify = function(position, cb) {
-    this.device.identify(this, position, cb);
+QMotionBlind.prototype.identify = function(cb) {
+    this.device.identify(this, cb);
 }
 
 QMotionBlind.prototype.move = function(position, cb) {
+    this.state.targetPosition = position;
     this.device.move(this, position, cb);
+}
+
+QMotionBlind.prototype._setTimer = function() {
+    var self = this;
+    this._timer = setInterval(
+        function() {
+            var index = supportedPosition.indexOf(self.state.currentPosition);
+            index = self.state.positionState == QMotion.PositionState.INCREASING ? index + 1 : index - 1;
+
+            self.state.currentPosition = supportedPosition[index];
+            self.emit("currentPosition", self);
+
+            if (self.state.currentPosition == self.state.targetPosition) {
+                clearInterval(self._timer);
+                self.state.positionState = QMotion.PositionState.STOPPED;
+                self.emit("positionState", self);
+            }
+
+            storage.setItemSync(self.addr, self.state);
+        },
+        30 * 1000 / supportedPosition.length
+    );
+}
+
+QMotionBlind.prototype._updateState = function() {
+    clearInterval(this._timer);
+
+    if (this.state.targetPosition > this.state.currentPosition) {
+        this.state.positionState = QMotion.PositionState.INCREASING;
+        this._setTimer();
+        this.emit("positionState", this);
+    }
+    else if (this.state.targetPosition < this.state.currentPosition) {
+        this.state.positionState = QMotion.PositionState.DECREASING;
+        this._setTimer();
+        this.emit("positionState", this);
+    }
+    else {
+        this.state.positionState = QMotion.PositionState.STOPPED;
+        this.emit("positionState", this);
+    }
+
+    storage.setItemSync(this.addr, this.state);
 }
 
 module.exports = QMotion;

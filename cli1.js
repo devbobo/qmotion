@@ -10,6 +10,13 @@ client.on("timeout", function(device) {
 
 client.on("found", function(device) {
     var blind;
+    var blinds = Object.keys(device.blinds).map(
+        function(k){
+            return device.blinds[k]
+        }
+    );
+    blinds.sort(compare);
+
     var stdin = process.openStdin();
     process.stdin.setRawMode(true);
     process.stdin.resume();
@@ -20,8 +27,8 @@ client.on("found", function(device) {
         console.log();
         console.log("Select blind to control:");
 
-        for (i = 0; i < device.blinds.length; i++) {
-            str += (i + 1) + ": " + device.blinds[i].name + ", ";
+        for (i = 0; i < blinds.length; i++) {
+            str += (i + 1) + ": " + blinds[i].name + ", ";
         }
 
         console.log(str);
@@ -42,8 +49,8 @@ client.on("found", function(device) {
                 case 0x37: // 7
                 case 0x38: // 8
                 case 0x39: // 9
-                    if (device.blinds[index]) {
-                        blind = device.blinds[index];
+                    if (blinds[index]) {
+                        blind = blinds[index];
                         console.log();
                         console.log("*** " + blind.name + " Selected ***");
                         console.log();
@@ -60,6 +67,25 @@ client.on("found", function(device) {
             }
         }
         else {
+            blind.on(
+                "currentPosition",
+                function(blind) {
+                    console.log("currentPosition " + blind.state.currentPosition)
+                }
+            );
+
+            blind.on(
+                "positionState",
+                function(blind) {
+                    console.log("positionState");
+                    if (blind.state.positionState == qmotion.PositionState.STOPPED) {
+                        blind.removeAllListeners();
+                        blind = null;
+                        displayMsg();
+                    }
+                }
+            );
+
             switch (key[0]) {
                 case 0x31: // 1
                 case 0x32: // 2
@@ -80,9 +106,18 @@ client.on("found", function(device) {
                     process.stdin.pause();
                     break;
             }
-
-            blind = null;
-            displayMsg();
         }
     });
 });
+
+function compare(a,b) {
+    if (a.name < b.name) {
+        return -1;
+    }
+
+    if (a.name > b.name) {
+        return 1;
+    }
+
+    return 0;
+}

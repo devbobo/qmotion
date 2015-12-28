@@ -1,6 +1,6 @@
 {
     "name": "qmotion",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "author": "David Parry <npm@introversion.com.au>",
     "description": "JS library for QMotion blinds",
     "main": "./qmotion.js",
@@ -23,6 +23,7 @@
         "blinds"
     ],
     "dependencies" : {
-        "sleep" : "*"
+        "node-persist": "*",
+        "sleep": "*"
     }
 }
