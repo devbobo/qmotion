@@ -1,5 +1,7 @@
 # JS Library for QMotion Blinds
 
+[![NPM Version](https://img.shields.io/npm/v/qmotion.svg)](https://www.npmjs.com/package/qmotion)
+
 A NodeJS client for the QMotion blinds (using a QSync device) based on my observations of the network protocol using tcpdump and Wireshark.
 
 # Install
