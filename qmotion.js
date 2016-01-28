@@ -340,6 +340,8 @@ QMotion.prototype._readDevice = function() {
     });
 }
 
+var defaults = {currentPosition: 0, positionState: QMotion.PositionState.STOPPED, targetPosition: 0};
+
 function QMotionBlind(device, hexString) {
     events.EventEmitter.call(this);
 
@@ -350,15 +352,17 @@ function QMotionBlind(device, hexString) {
 
     this.state = storage.getItemSync(this.addr);
 
-    if (this.state == undefined) {
-        this.state = {
-            currentPosition: 0,
-            positionState: QMotion.PositionState.STOPPED,
-            targetPosition: 0
-        }
-
-        storage.setItemSync(this.addr, this.state);
+    if (this.state === undefined) {
+        this.state = {};
     }
+
+    for (key in defaults) {
+        if (this.state[key] === undefined) {
+            this.state[key] = defaults[key];
+        }
+    }
+
+    storage.setItemSync(this.addr, this.state);
 
     this._timer = null;
 }
@@ -379,6 +383,13 @@ QMotionBlind.prototype._setTimer = function() {
         function() {
             var index = supportedPosition.indexOf(self.state.currentPosition);
             index = self.state.positionState == QMotion.PositionState.INCREASING ? index + 1 : index - 1;
+
+            if (index < 0) {
+                index = 0;
+            }
+            else if (index > supportedPosition.length - 1) {
+                index = supportedPosition.length - 1;
+            }
 
             self.state.currentPosition = supportedPosition[index];
             self.emit("currentPosition", self);
