@@ -12,7 +12,6 @@ function QMotion(ip) {
 
     if (ip != undefined) {
         this.ip = ip;
-        this.blinds = {};
         this.queue = [];
         this.tcpClient = null;
         this._readDevice();
@@ -72,10 +71,10 @@ QMotion.search = function() {
         }
 
         var device = new QMotion(rinfo.address);
+        server.emit("found", device);
 
         device.on('initialized', function() {
             server.close();
-            server.emit("found", device);
         });
     });
 
@@ -281,6 +280,7 @@ QMotion.prototype._processQueue = function() {
 QMotion.prototype._readDevice = function() {
     var self = this;
     var client = new net.Socket();
+    var blinds = {};
 
     storage.initSync({dir: this._persistPath()});
 
@@ -323,8 +323,8 @@ QMotion.prototype._readDevice = function() {
             }
 
             var item = new QMotionBlind(self, hexString);
-
-            self.blinds[item.addr] = item;
+            self.emit('blind', item);
+            blinds[item.addr] = item;
         }
         while(oldHex.length >=index);
 
@@ -336,7 +336,7 @@ QMotion.prototype._readDevice = function() {
     });
 
     client.on('end', function() {
-        self.emit('initialized', self.blinds);
+        self.emit('initialized', blinds);
     });
 }
 
@@ -379,7 +379,12 @@ QMotionBlind.prototype.move = function(position, cb) {
 
 QMotionBlind.prototype._setTimer = function() {
     var self = this;
-    this._timer = setInterval(
+
+    if (self._timer !== null) {
+        return;
+    }
+
+    self._timer = setInterval(
         function() {
             var index = supportedPosition.indexOf(self.state.currentPosition);
             index = self.state.positionState == QMotion.PositionState.INCREASING ? index + 1 : index - 1;
@@ -396,6 +401,7 @@ QMotionBlind.prototype._setTimer = function() {
 
             if (self.state.currentPosition == self.state.targetPosition) {
                 clearInterval(self._timer);
+                self._timer = null;
                 self.state.positionState = QMotion.PositionState.STOPPED;
                 self.emit("positionState", self);
             }
@@ -407,8 +413,6 @@ QMotionBlind.prototype._setTimer = function() {
 }
 
 QMotionBlind.prototype._updateState = function() {
-    clearInterval(this._timer);
-
     if (this.state.targetPosition > this.state.currentPosition) {
         this.state.positionState = QMotion.PositionState.INCREASING;
         this._setTimer();
