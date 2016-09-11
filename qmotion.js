@@ -27,7 +27,7 @@ QMotion.PositionState = {
 
 QMotion.search = function() {
     var udpPort = 9720;
-    var dgram = require("dgram");    
+    var dgram = require("dgram");
     var server = dgram.createSocket("udp4");
 
     server.on("error", function (err) {
@@ -312,7 +312,7 @@ QMotion.prototype._readDevice = function() {
                 index = lenGroup;
             }
             else if (reScene.test(oldHex)) {
-                index = 122   
+                index = 122;
             }
 
             hexString = oldHex.substr(0, index);
@@ -337,6 +337,10 @@ QMotion.prototype._readDevice = function() {
 
     client.on('end', function() {
         self.emit('initialized', blinds);
+    });
+
+    client.on('error', function(err) {
+        console.log(err);
     });
 }
 
