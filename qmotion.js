@@ -149,6 +149,12 @@ QMotion.prototype.move = function(blind, position, cb) {
 
     var cmd = "1b0500";
 
+    blind.state.targetActualPosition = value;
+
+    if (blind.state.targetActualPosition !== blind.state.currentPosition) {
+        blind.state.targetPosition = value;
+    }
+
     this._addToQueue(cmd, blind, code, cb, value);
 }
 
@@ -344,7 +350,7 @@ QMotion.prototype._readDevice = function() {
     });
 }
 
-var defaults = {currentPosition: 0, positionState: QMotion.PositionState.STOPPED, targetPosition: 0};
+var defaults = {currentPosition: 0, positionState: QMotion.PositionState.STOPPED, targetPosition: 0, targetActualPosition: 0};
 
 function QMotionBlind(device, hexString) {
     events.EventEmitter.call(this);
@@ -403,7 +409,7 @@ QMotionBlind.prototype._setTimer = function() {
             self.state.currentPosition = supportedPosition[index];
             self.emit("currentPosition", self);
 
-            if (self.state.currentPosition == self.state.targetPosition) {
+            if (self.state.currentPosition == self.state.targetActualPosition) {
                 clearInterval(self._timer);
                 self._timer = null;
                 self.state.positionState = QMotion.PositionState.STOPPED;
@@ -417,12 +423,12 @@ QMotionBlind.prototype._setTimer = function() {
 }
 
 QMotionBlind.prototype._updateState = function() {
-    if (this.state.targetPosition > this.state.currentPosition) {
+    if (this.state.targetActualPosition > this.state.currentPosition) {
         this.state.positionState = QMotion.PositionState.INCREASING;
         this._setTimer();
         this.emit("positionState", this);
     }
-    else if (this.state.targetPosition < this.state.currentPosition) {
+    else if (this.state.targetActualPosition < this.state.currentPosition) {
         this.state.positionState = QMotion.PositionState.DECREASING;
         this._setTimer();
         this.emit("positionState", this);
