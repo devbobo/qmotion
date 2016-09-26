@@ -1,10 +1,13 @@
-var net    = require('net');
-var events = require('events');
-var sleep  = require('sleep');
-var storage = require('node-persist');
 
-var debug = false;
-var port = 9760;
+var debug   = require('debug')('qmotion'),
+    events  = require('events'),
+    net     = require('net'),
+    sleep   = require('sleep'),
+    storage = require('node-persist');
+
+const TCP_PORT = 9760,
+      UDP_PORT = 9720;
+
 var supportedPosition = [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100];
 
 function QMotion(ip) {
@@ -26,35 +29,28 @@ QMotion.PositionState = {
 }
 
 QMotion.search = function() {
-    var udpPort = 9720;
     var dgram = require("dgram");
     var server = dgram.createSocket("udp4");
 
     server.on("error", function (err) {
-        if (debug) {
-            console.log("UDP error:\n" + err.stack);
-        }
+        debug("UDP error:\n" + err.stack);
 
         server.close();
         server.emit("timeout");
     });
 
     server.on("listening", function () {
-        if (debug) {
-            var address = server.address();
-            console.log("UDP listening " + address.address + ":" + address.port);
-        }
+        var address = server.address();
+        debug("UDP listening " + address.address + ":" + address.port);
 
         var message = new Buffer("00", "hex");
 
-        server.send(message, 0, message.length, 9720, "255.255.255.255", function(err) {
+        server.send(message, 0, message.length, UDP_PORT, "255.255.255.255", function(err) {
             if (err == null) {
                 return;
             }
 
-            if (debug) {
-                console.log("UDP error:\n" + err.stack);
-            }
+            debug("UDP error:\n" + err.stack);
 
             server.close();
             server.emit("timeout");
@@ -66,9 +62,7 @@ QMotion.search = function() {
             return;
         }
 
-        if (debug) {
-            console.log("UDP response: " + msg.toString("hex") + " from " + rinfo.address + ":" + rinfo.port);
-        }
+        debug("UDP response: " + msg.toString("hex") + " from " + rinfo.address + ":" + rinfo.port);
 
         var device = new QMotion(rinfo.address);
         server.emit("found", device);
@@ -78,15 +72,11 @@ QMotion.search = function() {
         });
     });
 
-    server.bind(9720, "0.0.0.0", function() {
+    server.bind(UDP_PORT, "0.0.0.0", function() {
         server.setBroadcast(true);
     });
 
     return server;
-}
-
-QMotion.setDebug = function(d){
-    debug = d;
 }
 
 QMotion.prototype.identify = function(blind, cb) {
@@ -136,9 +126,7 @@ QMotion.prototype.move = function(blind, position, cb) {
         }
     }
 
-    if (debug) {
-        console.log("Move to "+ value + "%");
-    }
+    debug("Move to "+ value + "%");
 
     var code = this._getCode(value);
 
@@ -177,7 +165,7 @@ QMotion.prototype._createClient = function() {
 
     this.tcpClient = new net.Socket();
 
-    this.tcpClient.connect(port, self.ip, function() {
+    this.tcpClient.connect(TCP_PORT, self.ip, function() {
         self._processQueue();
     });
 }
@@ -238,19 +226,12 @@ QMotion.prototype._processQueue = function() {
     }
 
     this.tcpClient.on('data', function(data) {
-        if (debug) {
-            console.log("Recv: " + data.toString("hex"));
-            console.log("---------");
-        }
+        debug("Recv: " + data.toString("hex"));
 
         if (typeof item.cb == "undefined") {
             if (self.queue.length != 0) {
                 item = self.queue.shift();
-
-                if (debug) {
-                    console.log("Send: " + item.cmd);
-                }
-
+                debug("Send: " + item.cmd);
                 self.tcpClient.write(Buffer(item.cmd, "hex"));
             }
             else {
@@ -276,10 +257,7 @@ QMotion.prototype._processQueue = function() {
 
     var item = this.queue.shift();
 
-    if (debug) {
-        console.log("Send: " + item.cmd);
-    }
-
+    debug("Send: " + item.cmd);
     this.tcpClient.write(Buffer(item.cmd, "hex"));
 }
 
@@ -301,9 +279,7 @@ QMotion.prototype._readDevice = function() {
     client.on('data', function(data) {
         var hexString = data.toString("hex");
 
-        if (debug) {
-            console.log("TCP response: " + hexString);
-        }
+        debug("TCP response: " + hexString);
 
         if (reMsg.test(hexString) && hexString.length > lenMsg) {
             hexString = hexString.substr(lenMsg);
@@ -318,7 +294,7 @@ QMotion.prototype._readDevice = function() {
                 index = lenGroup;
             }
             else if (reScene.test(oldHex)) {
-                index = 122;
+                index = lenScene;
             }
 
             hexString = oldHex.substr(0, index);
@@ -337,7 +313,7 @@ QMotion.prototype._readDevice = function() {
         client.end();
     });
 
-    client.connect(port, self.ip, function() {
+    client.connect(TCP_PORT, self.ip, function() {
         client.write(Buffer("16020000", "hex"));
     });
 

@@ -23,6 +23,7 @@
         "blinds"
     ],
     "dependencies" : {
+        "debug": "*",
         "node-persist": "*",
         "sleep": "*"
     }
