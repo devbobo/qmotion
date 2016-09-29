@@ -24,7 +24,6 @@
     ],
     "dependencies" : {
         "debug": "*",
-        "node-persist": "*",
-        "sleep": "*"
+        "node-persist": "*"
     }
 }

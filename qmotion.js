@@ -2,7 +2,6 @@
 var debug   = require('debug')('qmotion'),
     events  = require('events'),
     net     = require('net'),
-    sleep   = require('sleep'),
     storage = require('node-persist');
 
 const TCP_PORT = 9760,
