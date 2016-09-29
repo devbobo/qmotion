@@ -294,7 +294,7 @@ function QMotionBlind(device, hexString) {
 require('util').inherits(QMotionBlind, events.EventEmitter);
 
 QMotionBlind.prototype.identify = function(callback) {
-	callback = callback || function() {};
+    callback = callback || function() {};
 
     var oldPos = this.state.currentPosition;
     var index = supportedPosition.indexOf(oldPos);
@@ -308,25 +308,27 @@ QMotionBlind.prototype.identify = function(callback) {
         }, 30 * 1000 / supportedPosition.length, this);
 
         setTimeout(function(self) {
-            self.move(oldPos);
+            if (self.state.targetPosition == oldPos) {
+                self.move(oldPos);
+            }
         }, (30 * 1000 / supportedPosition.length) + 1000, this);
     }.bind(this));
 }
 
 QMotionBlind.prototype.move = function(position, callback) {
-	callback = callback || function() {};
+    callback = callback || function() {};
 
-	position = this._validatePosition(position);
+    position = this._validatePosition(position);
 
-	if (position == NaN) {
-		callback(null);
-	}
+    if (position == NaN) {
+        callback(null);
+    }
 
-	if (this.state.targetPosition !== position) {
-		this.state.targetPosition = position;
-		debug('Emit targetPosition %s%', position);
-		this.emit('targetPosition', position);
-	}
+    if (this.state.targetPosition !== position) {
+        this.state.targetPosition = position;
+        debug('Emit targetPosition %s%', position);
+        this.emit('targetPosition', position);
+    }
 
     this.device.move(this, position, callback);
 }
@@ -386,13 +388,13 @@ QMotionBlind.prototype._updatePositionState = function() {
 }
 
 QMotionBlind.prototype._validatePosition = function(position) {
-	var value = parseFloat(position);
+    var value = parseFloat(position);
 
     if (value == NaN) {
         return value;
     }
 
-	if (supportedPosition.indexOf(value) == -1) {
+    if (supportedPosition.indexOf(value) == -1) {
         if (value < supportedPosition[0]) {
             value = supportedPosition[0];
         }
