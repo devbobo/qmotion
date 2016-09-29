@@ -78,52 +78,12 @@ QMotion.search = function() {
     return server;
 }
 
-QMotion.prototype.identify = function(blind, callback) {
-    callback = callback || function() {};
-
-    var oldPos = blind.state.currentPosition;
-    var index = supportedPosition.indexOf(oldPos);
-    var newPos = index < 6 ? supportedPosition[index + 1] : supportedPosition[index - 1];
-
-    this.move(blind, newPos, function() {
-        setTimeout(function(self) {
-            self.move(blind, oldPos, function() {
-                callback();
-            });
-        }, 2000, this);
-    }.bind(this));
-}
-
 QMotion.prototype.move = function(blind, position, callback) {
     callback = callback || function() {};
 
-    var value = parseFloat(position);
+    debug("Move to "+ position + "%");
 
-    if (value == NaN) {
-        callback(null);
-        return;
-    }
-
-    if (supportedPosition.indexOf(value) == -1) {
-        if (value < supportedPosition[0]) {
-            position = supportedPosition[0];
-        }
-        else if (value > supportedPosition[supportedPosition.length - 1]) {
-            position = supportedPosition[supportedPosition.length - 1];
-        }
-        else {
-            for (i = 0; i < supportedPosition.length - 1 ; i++) {
-                if (value < supportedPosition[i + 1]) {
-                    value = (value > (supportedPosition[i] + 6.25)) ? supportedPosition[i + 1] : supportedPosition[i];
-                    break;
-                }
-            }
-        }
-    }
-
-    debug("Move to "+ value + "%");
-
-    var code = this._getCode(value);
+    var code = this._getCode(position);
 
     if (code == null) {
         callback(null);
@@ -132,13 +92,7 @@ QMotion.prototype.move = function(blind, position, callback) {
 
     var cmd = "1b0500";
 
-    blind.state.targetActualPosition = value;
-
-    if (blind.state.targetActualPosition !== blind.state.currentPosition) {
-        blind.state.targetPosition = value;
-    }
-
-    this._addToQueue(cmd, blind, code, callback, value);
+    this._addToQueue(cmd, blind, code, callback, position);
 }
 
 QMotion.prototype._addToQueue = function(cmd, blind, code, callback, retVal) {
@@ -339,13 +293,42 @@ function QMotionBlind(device, hexString) {
 }
 require('util').inherits(QMotionBlind, events.EventEmitter);
 
-QMotionBlind.prototype.identify = function(cb) {
-    this.device.identify(this, cb);
+QMotionBlind.prototype.identify = function(callback) {
+	callback = callback || function() {};
+
+    var oldPos = this.state.currentPosition;
+    var index = supportedPosition.indexOf(oldPos);
+    var newPos = index < 6 ? supportedPosition[index + 1] : supportedPosition[index - 1];
+
+    this.move(newPos, function() {
+        setTimeout(function(self) {
+            self.move(oldPos, function() {
+                callback();
+            });
+        }, 30 * 1000 / supportedPosition.length, this);
+
+        setTimeout(function(self) {
+            self.move(oldPos);
+        }, (30 * 1000 / supportedPosition.length) + 1000, this);
+    }.bind(this));
 }
 
-QMotionBlind.prototype.move = function(position, cb) {
-    this.state.targetPosition = position;
-    this.device.move(this, position, cb);
+QMotionBlind.prototype.move = function(position, callback) {
+	callback = callback || function() {};
+
+	position = this._validatePosition(position);
+
+	if (position == NaN) {
+		callback(null);
+	}
+
+	if (this.state.targetPosition !== position) {
+		this.state.targetPosition = position;
+		debug('Emit targetPosition %s%', position);
+		this.emit('targetPosition', position);
+	}
+
+    this.device.move(this, position, callback);
 }
 
 QMotionBlind.prototype._setTimer = function() {
@@ -360,19 +343,22 @@ QMotionBlind.prototype._setTimer = function() {
 
             if (index < 0) {
                 index = 0;
+                clearInterval(self._timer);
             }
             else if (index > supportedPosition.length - 1) {
                 index = supportedPosition.length - 1;
+                clearInterval(self._timer);
             }
 
             self.state.currentPosition = supportedPosition[index];
-            self.emit("currentPosition", self);
+            debug('Emit currentPosition %s%', self.state.currentPosition);
+            self.emit("currentPosition", self.state.currentPosition);
 
-            if (self.state.currentPosition == self.state.targetActualPosition) {
+            if (self.state.currentPosition == self.state.targetPosition) {
                 clearInterval(self._timer);
                 self._timer = null;
                 self.state.positionState = QMotion.PositionState.STOPPED;
-                self.emit("positionState", self);
+                self.emit("positionState", self.state.positionState);
             }
 
             storage.setItemSync(self.addr, self.state);
@@ -383,22 +369,47 @@ QMotionBlind.prototype._setTimer = function() {
 }
 
 QMotionBlind.prototype._updatePositionState = function() {
-    if (this.state.targetActualPosition > this.state.currentPosition) {
+    if (this.state.targetPosition > this.state.currentPosition) {
         this.state.positionState = QMotion.PositionState.INCREASING;
         this._setTimer();
-        this.emit("positionState", this);
     }
-    else if (this.state.targetActualPosition < this.state.currentPosition) {
+    else if (this.state.targetPosition < this.state.currentPosition) {
         this.state.positionState = QMotion.PositionState.DECREASING;
         this._setTimer();
-        this.emit("positionState", this);
     }
     else {
         this.state.positionState = QMotion.PositionState.STOPPED;
-        this.emit("positionState", this);
     }
 
+    this.emit("positionState", this.state.positionState);
     storage.setItemSync(this.addr, this.state);
+}
+
+QMotionBlind.prototype._validatePosition = function(position) {
+	var value = parseFloat(position);
+
+    if (value == NaN) {
+        return value;
+    }
+
+	if (supportedPosition.indexOf(value) == -1) {
+        if (value < supportedPosition[0]) {
+            value = supportedPosition[0];
+        }
+        else if (value > supportedPosition[supportedPosition.length - 1]) {
+            value = supportedPosition[supportedPosition.length - 1];
+        }
+        else {
+            for (i = 0; i < supportedPosition.length - 1 ; i++) {
+                if (value < supportedPosition[i + 1]) {
+                    value = (value > (supportedPosition[i] + 6.25)) ? supportedPosition[i + 1] : supportedPosition[i];
+                    break;
+                }
+            }
+        }
+    }
+
+    return value;
 }
 
 module.exports = QMotion;
