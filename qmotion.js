@@ -79,33 +79,29 @@ QMotion.search = function() {
     return server;
 }
 
-QMotion.prototype.identify = function(blind, cb) {
-    var self = this;
+QMotion.prototype.identify = function(blind, callback) {
+    callback = callback || function() {};
 
     var oldPos = blind.state.currentPosition;
     var index = supportedPosition.indexOf(oldPos);
     var newPos = index < 6 ? supportedPosition[index + 1] : supportedPosition[index - 1];
 
-    if(typeof cb == "undefined") cb=function(){};
-
     this.move(blind, newPos, function() {
-        sleep.sleep(2);
-
-        self.move(blind, oldPos, function() {
-            cb();
-        });
-    });
+        setTimeout(function(self) {
+            self.move(blind, oldPos, function() {
+                callback();
+            });
+        }, 2000, this);
+    }.bind(this));
 }
 
-QMotion.prototype.move = function(blind, position, cb) {
-    var code;
-
-    if(typeof cb == "undefined") cb=function(){};
+QMotion.prototype.move = function(blind, position, callback) {
+    callback = callback || function() {};
 
     var value = parseFloat(position);
 
     if (value == NaN) {
-        cb(null);
+        callback(null);
         return;
     }
 
@@ -131,7 +127,7 @@ QMotion.prototype.move = function(blind, position, cb) {
     var code = this._getCode(value);
 
     if (code == null) {
-        cb(null);
+        callback(null);
         return;
     }
 
@@ -143,31 +139,45 @@ QMotion.prototype.move = function(blind, position, cb) {
         blind.state.targetPosition = value;
     }
 
-    this._addToQueue(cmd, blind, code, cb, value);
+    this._addToQueue(cmd, blind, code, callback, value);
 }
 
-QMotion.prototype._addToQueue = function(cmd, blind, code, cb, retVal) {
-    var self = this;
-
-    this.queue.push({"cmd": "1b00"});
-    this.queue.push({"cmd": "1b0100"});
-    this.queue.push({"cmd": cmd + blind.addr + code, "cb": cb, "blind": blind, "retVal": retVal});
-
+QMotion.prototype._addToQueue = function(cmd, blind, code, callback, retVal) {
+    this.queue.push([{"cmd": "1b00"}, {"cmd": "1b0100"}, {"cmd": cmd + blind.addr + code, "callback": callback, "blind": blind, "retVal": retVal}]);
     this._createClient();
 }
 
 QMotion.prototype._createClient = function() {
-    var self = this;
-
     if (this.tcpClient != null) {
         return
     }
 
-    this.tcpClient = new net.Socket();
+    this.tcpClient = new net.Socket().unref();
 
-    this.tcpClient.connect(TCP_PORT, self.ip, function() {
-        self._processQueue();
-    });
+    this.tcpClient.on('data', function(data) {
+        debug("Recv: " + data.toString("hex"));
+
+        var timeout = 10;
+
+        if (this.item.callback !== undefined) {
+            if (this.item.blind !== undefined) {
+                this.item.blind._updatePositionState();
+            }
+
+            this.item.callback(this.item.retVal);
+            timeout = 250;
+        }
+
+        this.item = null;
+
+        setTimeout(function(self) {
+            self._processQueue();
+        }, timeout, this);
+    }.bind(this));
+
+    this.tcpClient.connect(TCP_PORT, this.ip, function() {
+        this._processQueue();
+    }.bind(this));
 }
 
 QMotion.prototype._getCode = function(value) {
@@ -214,55 +224,31 @@ QMotion.prototype._persistPath = function() {
 }
 
 QMotion.prototype._processQueue = function() {
-    var self = this;
-
     if (this.queue.length == 0) {
         if (this.tcpClient != null) {
-            self.tcpClient.destroy();
-            self.tcpClient = null;
+            this.tcpClient.removeAllListeners();
+            this.tcpClient.destroy();
+            this.tcpClient = null;
         }
 
         return;
     }
 
-    this.tcpClient.on('data', function(data) {
-        debug("Recv: " + data.toString("hex"));
+    this.item = this.queue.shift();
 
-        if (typeof item.cb == "undefined") {
-            if (self.queue.length != 0) {
-                item = self.queue.shift();
-                debug("Send: " + item.cmd);
-                self.tcpClient.write(Buffer(item.cmd, "hex"));
-            }
-            else {
-                self.tcpClient.destroy();
-                self.tcpClient = null;
-            }
+    if (this.item.constructor === Array) {
+        if (this.item.length > 1) {
+            this.queue.unshift(this.item.slice(1));
         }
-        else {
-            if (typeof item.blind != "undefined") {
-                item.blind._updateState();
-            }
 
-            item.cb(item.retVal);
-            self.tcpClient.destroy();
-            self.tcpClient = null;
+        this.item = this.item[0];
+    }
 
-            if (self.queue.length != 0) {
-                sleep.usleep(750000);
-                self._createClient();
-            }
-        }
-    });
-
-    var item = this.queue.shift();
-
-    debug("Send: " + item.cmd);
-    this.tcpClient.write(Buffer(item.cmd, "hex"));
+    debug("Send: " + this.item.cmd);
+    this.tcpClient.write(Buffer(this.item.cmd, "hex"));
 }
 
 QMotion.prototype._readDevice = function() {
-    var self = this;
     var client = new net.Socket();
     var blinds = {};
 
@@ -304,25 +290,25 @@ QMotion.prototype._readDevice = function() {
                 continue;
             }
 
-            var item = new QMotionBlind(self, hexString);
-            self.emit('blind', item);
+            var item = new QMotionBlind(this, hexString);
+            this.emit('blind', item);
             blinds[item.addr] = item;
         }
-        while(oldHex.length >=index);
+        while(oldHex.length >= index);
 
         client.end();
-    });
+    }.bind(this));
 
-    client.connect(TCP_PORT, self.ip, function() {
+    client.connect(TCP_PORT, this.ip, function() {
         client.write(Buffer("16020000", "hex"));
     });
 
     client.on('end', function() {
-        self.emit('initialized', blinds);
-    });
+        this.emit('initialized', blinds);
+    }.bind(this));
 
     client.on('error', function(err) {
-        console.log(err);
+        debug(err);
     });
 }
 
@@ -364,14 +350,12 @@ QMotionBlind.prototype.move = function(position, cb) {
 }
 
 QMotionBlind.prototype._setTimer = function() {
-    var self = this;
-
-    if (self._timer !== null) {
+    if (this._timer !== null) {
         return;
     }
 
-    self._timer = setInterval(
-        function() {
+    this._timer = setInterval(
+        function(self) {
             var index = supportedPosition.indexOf(self.state.currentPosition);
             index = self.state.positionState == QMotion.PositionState.INCREASING ? index + 1 : index - 1;
 
@@ -394,11 +378,12 @@ QMotionBlind.prototype._setTimer = function() {
 
             storage.setItemSync(self.addr, self.state);
         },
-        30 * 1000 / supportedPosition.length
+        30 * 1000 / supportedPosition.length,
+        this
     );
 }
 
-QMotionBlind.prototype._updateState = function() {
+QMotionBlind.prototype._updatePositionState = function() {
     if (this.state.targetActualPosition > this.state.currentPosition) {
         this.state.positionState = QMotion.PositionState.INCREASING;
         this._setTimer();

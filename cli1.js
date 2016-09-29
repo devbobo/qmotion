@@ -1,7 +1,5 @@
 var qmotion = require('./qmotion');
 
-qmotion.setDebug(true);
-
 var client = qmotion.search();
 
 client.on("timeout", function(device) {
@@ -22,7 +20,7 @@ client.on("found", function(device) {
         process.stdin.setRawMode(true);
         process.stdin.resume();
 
-        function displayMsg() {
+        function selectBlindMsg() {
             var str = "";
 
             console.log();
@@ -33,9 +31,32 @@ client.on("found", function(device) {
             }
 
             console.log(str);
+            process.stdin.resume();
         }
 
-        displayMsg();
+        function blindSelectionMessage(blind) {
+            console.log();
+            console.log("*** " + blind.name + " Selected ***");
+            selectBlindPositionMsg();
+        }
+
+        function blindPositionMsg(blind, position) {
+            console.log();
+            console.log("*** Move " + blind.name + " to " + position + "% ***");
+        }
+
+        function selectBlindPositionMsg() {
+            console.log();
+            console.log("Select blind position:");
+            console.log("1: 0%, 2: 12.5%, 3: 25%, 4: 37.5%, 5: 50%, 6: 62.5%, 7: 75%, 8: 87.5:, 9: 100%");
+        }
+
+        function processExit() {
+            console.log("Closing...");
+            process.stdin.pause();
+        }
+
+        selectBlindMsg();
 
         stdin.on('data', function (key) {
             var index = parseInt(String.fromCharCode(key[0])) - 1;
@@ -52,42 +73,38 @@ client.on("found", function(device) {
                     case 0x39: // 9
                         if (blinds[index]) {
                             blind = blinds[index];
-                            console.log();
-                            console.log("*** " + blind.name + " Selected ***");
-                            console.log();
-                            console.log("Select blind position:");
-                            console.log("1: 0%, 2: 12.5%, 3: 25%, 4: 37.5%, 5: 50%, 6: 62.5%, 7: 75%, 8: 87.5:, 9: 100%");
+
+                            blind.on(
+                                "currentPosition",
+                                function(blind) {
+                                    console.log("currentPosition " + blind.state.currentPosition)
+                                }
+                            );
+
+                            blind.on(
+                                "positionState",
+                                function(blind) {
+                                    console.log("positionState");
+                                }
+                            );
+
+                            blindSelectionMessage(blind);
                         }
                         break;
                     case 0x03: // ctrl-c
-                        console.log("Closing...");
-                        process.stdin.pause();
+                        processExit();
                         break;
                     default:
                         blind = null;
                 }
             }
             else {
-                blind.on(
-                    "currentPosition",
-                    function(blind) {
-                        console.log("currentPosition " + blind.state.currentPosition)
-                    }
-                );
-
-                blind.on(
-                    "positionState",
-                    function(blind) {
-                        console.log("positionState");
-                        if (blind.state.positionState == qmotion.PositionState.STOPPED) {
-                            blind.removeAllListeners();
-                            blind = null;
-                            displayMsg();
-                        }
-                    }
-                );
-
                 switch (key[0]) {
+                    case 0x1b: // esc
+                        blind.removeAllListeners();
+                        blind = null;
+                        selectBlindMsg();
+                        break;
                     case 0x31: // 1
                     case 0x32: // 2
                     case 0x33: // 3
@@ -98,13 +115,11 @@ client.on("found", function(device) {
                     case 0x38: // 8
                     case 0x39: // 9
                         var position = index * 12.5;
-                        console.log();
-                        console.log("*** Move " + blind.name + " to " + position + "% ***");
+                        blindPositionMsg(blind, position);
                         blind.move(position);
                         break;
                     case 0x03: // ctrl-c
-                        console.log("Closing...");
-                        process.stdin.pause();
+                        processExit();
                         break;
                 }
             }
