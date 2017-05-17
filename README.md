@@ -1,5 +1,7 @@
 # JS Library for QMotion Blinds
 
+[![npm package](https://nodei.co/npm/qmotion.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/qmotion/)
+
 [![NPM Version](https://img.shields.io/npm/v/qmotion.svg)](https://www.npmjs.com/package/qmotion)
 [![Dependency Status](https://img.shields.io/versioneye/d/nodejs/qmotion.svg)](https://www.versioneye.com/nodejs/qmotion/)
 
