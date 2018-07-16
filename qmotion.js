@@ -112,7 +112,7 @@ QMotion.prototype._createClient = function() {
 
         var timeout = 10;
 
-        if (this.item.callback !== undefined) {
+        if (this.item && this.item.callback !== undefined) {
             if (this.item.blind !== undefined) {
                 this.item.blind._updatePositionState();
             }
