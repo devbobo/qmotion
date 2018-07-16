@@ -265,7 +265,7 @@ QMotion.prototype._readDevice = function() {
     });
 }
 
-var defaults = {currentPosition: 0, positionState: QMotion.PositionState.STOPPED, targetPosition: 0, targetActualPosition: 0};
+var defaults = {currentPosition: 0, positionState: QMotion.PositionState.STOPPED, targetPosition: 0};
 
 function QMotionBlind(device, hexString) {
     events.EventEmitter.call(this);
@@ -275,19 +275,26 @@ function QMotionBlind(device, hexString) {
     this.buffer = hexString;
     this.device = device;
 
-    this.state = storage.getItem(this.addr);
+    this.state = defaults;
 
-    if (this.state === undefined) {
-        this.state = {};
-    }
+    storage.getItem(this.addr).then(function(state) {
+        this.state = state;
 
-    for (key in defaults) {
-        if (this.state[key] === undefined) {
-            this.state[key] = defaults[key];
+        if (this.state === undefined) {
+            this.state = {};
         }
-    }
 
-    storage.setItem(this.addr, this.state);
+        for (key in defaults) {
+            if (this.state[key] === undefined) {
+                this.state[key] = defaults[key];
+            }
+        }
+
+        storage.setItem(this.addr, this.state);
+
+        this.emit('currentPosition', this.state.currentPosition);
+        this.emit('targetPosition', this.state.targetPosition);
+    }.bind(this));
 
     this._timer = null;
 }
