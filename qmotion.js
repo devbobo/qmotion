@@ -205,7 +205,7 @@ QMotion.prototype._readDevice = function() {
     var client = new net.Socket();
     var blinds = {};
 
-    storage.initSync({dir: this._persistPath()});
+    storage.init({dir: this._persistPath()});
 
     var reMsg = /^1604/;
     var reGroup = /^162c/;
@@ -275,7 +275,7 @@ function QMotionBlind(device, hexString) {
     this.buffer = hexString;
     this.device = device;
 
-    this.state = storage.getItemSync(this.addr);
+    this.state = storage.getItem(this.addr);
 
     if (this.state === undefined) {
         this.state = {};
@@ -287,7 +287,7 @@ function QMotionBlind(device, hexString) {
         }
     }
 
-    storage.setItemSync(this.addr, this.state);
+    storage.setItem(this.addr, this.state);
 
     this._timer = null;
 }
@@ -361,7 +361,7 @@ QMotionBlind.prototype._setTimer = function() {
                 self.emit("positionState", self.state.positionState);
             }
 
-            storage.setItemSync(self.addr, self.state);
+            storage.setItem(self.addr, self.state);
         },
         30 * 1000 / supportedPosition.length,
         this
@@ -382,7 +382,7 @@ QMotionBlind.prototype._updatePositionState = function() {
     }
 
     this.emit("positionState", this.state.positionState);
-    storage.setItemSync(this.addr, this.state);
+    storage.setItem(this.addr, this.state);
 }
 
 QMotionBlind.prototype._validatePosition = function(position) {

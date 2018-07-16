@@ -24,6 +24,6 @@
     ],
     "dependencies" : {
         "debug": "*",
-        "node-persist": "*"
+        "node-persist": "^3.0.1"
     }
 }
