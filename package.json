@@ -1,6 +1,6 @@
 {
     "name": "qmotion",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "author": "David Parry <npm@introversion.com.au>",
     "description": "JS library for QMotion blinds",
     "main": "./qmotion.js",
